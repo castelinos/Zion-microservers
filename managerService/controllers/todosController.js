@@ -1,4 +1,8 @@
 import AxiosFetch from "../axiosFetch.js";
+import dotenv from "dotenv";
+import connectQueue from "../lib/amqp.js";
+
+dotenv.config(); // fetch .env variables
 
 const axiosInstance = new AxiosFetch();
 
@@ -74,13 +78,17 @@ export const addNewTodoController = async (req, res) => {
     console.log('Adding new todo:', task);
     
     // Send a POST request to the first microservice to add the new todo
-    const response = await axiosInstance.post(`${process.env.SERVICE1_URL}/api/todos/add`, { task });
+    //const response = await axiosInstance.post(`${process.env.SERVICE1_URL}/api/todos/add`, { task });
     
-    if (response.status === 200) {
-      res.status(200).json(response.data);
-    } else {
-      res.json(response.data);
-    }
+    let channel = await connectQueue();
+
+    let data = { 'task':task, 'action':'add' }
+
+    // Producer method, will create rabbitmq jobs
+    channel.sendToQueue(process.env.QUEUE_NAME, Buffer.from(JSON.stringify(data)));
+
+    res.status(200).json({ data:task });
+
   }catch (err) {  
     console.error('Error occurred:', err.message);
     res.status(500).json({ error: 'An error occurred while adding new ToDo' });
